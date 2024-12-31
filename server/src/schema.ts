@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { createSchema } from "graphql-yoga";
+import { createSchema, YogaInitialContext } from "graphql-yoga";
 import { db } from "./db";
 import * as db_schema from "./db/schema";
 
@@ -8,7 +8,9 @@ import { createBuilder, TableKeys, updateBuilder } from "./model";
 
 import * as validations from "./validations";
 import { ADMIN_ROLES } from "./utils/auth";
-import { Session, User } from "@auth/express";
+import { User } from "@auth/express";
+import { accessTokenMutation, accessTokenQuery } from "./utils/accessTokens";
+import { postWorkerJob } from "./workers";
 
 export interface GraphQLContext {
   db: typeof db;
@@ -80,6 +82,10 @@ const mutations = {
     validations.team,
     "teams" as TableKeys<typeof db_schema>
   ),
+  accessTokens: accessTokenMutation,
+  refreshGmail: postWorkerJob("gmail_list", ["q"]),
+  refreshDrive: postWorkerJob("gdrive_list", ["q"]),
+  refreshDoc: postWorkerJob("gdoc_fetch", ["documentId"]),
 };
 
 // generate types for all this
@@ -87,6 +93,16 @@ Object.entries(mutations).forEach(([key, value]) => {});
 
 export const schema = createSchema<GraphQLContext>({
   typeDefs: /* GraphQL */ `
+    type AccessTokens {
+      access_token: String!
+      refresh_token: String!
+      expires_at: Int!
+    }
+    input AccessTokensUpdateInput {
+      access_token: String!
+      refresh_token: String!
+      expires_at: Int!
+    }
     interface Identified {
       # The ID of the object.
       id: ID!
@@ -110,15 +126,8 @@ export const schema = createSchema<GraphQLContext>({
     type Tenant implements Identified {
       id: ID!
       name: String!
-      domain: String!
+      domain: String
       active: Boolean!
-    }
-    type Query {
-      hello: String
-      tags: [Lookup!]!
-      teams: [Lookup!]!
-      products: [Lookup!]!
-      teamRoles: [Lookup!]!
     }
     type ProductGroup implements Identified {
       id: ID!
@@ -132,7 +141,23 @@ export const schema = createSchema<GraphQLContext>({
       description: String!
       productGroup: String!
     }
+    type JobAddition {
+      success: Boolean!
+      status: Int!
+      message: String!
+    }
+    type Query {
+      hello: String
+      tags: [Lookup!]!
+      teams: [Lookup!]!
+      products: [Lookup!]!
+      teamRoles: [Lookup!]!
+      accessTokens: AccessTokens!
+      dataSources: [Lookup!]!
+      tenants: [Tenant!]!
+    }
     type Mutation {
+      accessTokens(input: AccessTokensUpdateInput!): AccessTokens!
       createTenant(name: String!, domain: String!, active: Boolean): Tenant!
       createTag(name: String!, active: Boolean): Tag!
       updateTag(id: String!, name: String!, active: Boolean): Tag!
@@ -166,26 +191,36 @@ export const schema = createSchema<GraphQLContext>({
       updateDataSource(id: String!, name: String!, active: Boolean): Lookup!
       createTeam(name: String!, active: Boolean): Lookup!
       updateTeam(id: String!, name: String!, active: Boolean): Lookup!
+      refreshGmail(q: String): JobAddition!
+      refreshDrive(q: String): JobAddition!
+      refreshDoc(documentId: String!): JobAddition!
     }
   `,
   resolvers: {
     Query: {
       hello: (_, args, context) =>
         JSON.stringify({
-          user: context.jwt.payload._id,
-          dataSource: context.jwt.payload.dataSource,
+          user: context.jwt?.payload._id,
+          dataSource: context.jwt?.payload.dataSource,
           jwt: context.jwt,
         }),
+      accessTokens: accessTokenQuery,
       tags: (_, _args, context) =>
         context.db.query.tags.findMany(lookupSettings),
       teams: (_, _args, _context) => {
         logger.info("teams", _args, _context);
         return db.query.teams.findMany(lookupSettings);
       },
+      tenants: (_, _args, _context) =>
+        db.query.tenants.findMany({
+          columns: { id: true, name: true, active: true, domain: true },
+        }),
       products: (_, _args, _context) =>
         db.query.product.findMany(lookupSettings),
       teamRoles: (_, _args, _context) =>
         db.query.teamRoles.findMany(lookupSettings),
+      dataSources: (_, _args, _context) =>
+        db.query.dataSources.findMany(lookupSettings),
     },
     Mutation: mutations,
   },

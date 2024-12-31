@@ -7,7 +7,7 @@ export const CREATE_ROLES = ["admin", "contributor", "editor"];
 export const READ_ROLES = ["admin", "contributor", "editor", "viewer"];
 
 export async function checkUser(context: GraphQLContext, roles: string[]) {
-  const { _id: userId, tenant, dataSource } = context.jwt.payload;
+  const { _id: userId, tenant, dataSource } = context.jwt!.payload;
 
   const ds = await context.db.query.dataSources.findFirst({
     where: (dataSources, { and, eq }) =>

@@ -15,12 +15,16 @@ import { useServer } from "graphql-ws/lib/use/ws";
 import { ExpressAuth } from "@auth/express";
 import { currentSession } from "./middleware/auth.middleware";
 import { authConfig } from "./config/auth.config";
+import { otelSetup } from "./otel";
 
 const port = process.env.PORT ?? 4000;
 const host = process.env.HOST ?? "localhost";
 
 const app = express();
 const server = http.createServer(app);
+
+// setup opentelemetry
+otelSetup();
 
 app.use(currentSession);
 

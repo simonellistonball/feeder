@@ -61,9 +61,7 @@ export const dataSourceRelations = relations(dataSources, ({ one, many }) => ({
 export const tenants = createTable("tenant", {
   ...namedObject,
   domain: varchar("domain", { length: 255 }),
-  createdById: uuid("created_by_id")
-    .notNull()
-    .references((): AnyPgColumn => users.id),
+  createdById: uuid("created_by_id").references((): AnyPgColumn => users.id),
   updatedById: uuid("updated_by_id").references((): AnyPgColumn => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),

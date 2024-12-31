@@ -3,7 +3,10 @@ import { db } from "../db";
 
 const user = await db.query.users.findFirst({
   where: (users, { and, eq }) =>
-    and(eq(users.active, true), eq(users.name, "seed")),
+    and(
+      eq(users.active, true),
+      eq(users.id, "1f3ac13b-739f-4b4f-9c28-3989bd98e83a")
+    ),
   columns: { id: true, name: true },
   with: {
     userDataSourceRole: {

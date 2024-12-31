@@ -7,11 +7,22 @@ import { faker } from "@faker-js/faker";
 import { v4 as uuidv4 } from "uuid";
 
 async function main() {
+  // get the current seed user id
+  const previousSeed = await db.query.users.findFirst({
+    where: eq(schema.users.name, "seed"),
+  });
+  // delete all tenant user links for the seed user
+  if (previousSeed) {
+    await db
+      .delete(schema.userTenants)
+      .where(eq(schema.userTenants.userId, previousSeed.id));
+  }
   await db
     .delete(schema.dataSources)
     .where(eq(schema.dataSources.name, "seed"));
 
   // create a tenant
+  const seedUserId = uuidv4();
   const tenants = await db
     .insert(schema.tenants)
     .values([
@@ -406,6 +417,34 @@ async function main() {
   await db.refreshMaterializedView(views.productManagersView);
   await db.refreshMaterializedView(views.teamsAndRoles);
 
+  const developer = await db.query.users.findFirst({
+    where: eq(schema.users.email, "simon@simonellistonball.com"),
+  });
+
+  // make simon's user admin on the tenant and the data source for seed data
+  await db
+    .insert(schema.userDataSourceRole)
+    .values({
+      userId: developer!.id,
+      role: "admin",
+      createdById: seedUser.id,
+      createdAt: new Date(),
+      dataSourceId: dataSourceId,
+    })
+    .returning();
+  // and the tenant
+  await db
+    .insert(schema.userTenants)
+    .values(
+      tenants.map((t) => ({
+        userId: developer!.id,
+        tenantId: t.id,
+        role: "admin" as const,
+        createdById: seedUser.id,
+        createdAt: new Date(),
+      }))
+    )
+    .returning();
   return;
 }
 

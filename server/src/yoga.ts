@@ -10,10 +10,14 @@ import { useCookies } from "@whatwg-node/server-plugin-cookies";
 import { usePrometheus } from "@graphql-yoga/plugin-prometheus";
 import { db } from "./db";
 import { logger } from "./logger";
-import { getSession, Session, User } from "@auth/express";
-import { authConfig } from "./config/auth.config";
+import { User } from "@auth/express";
 import { eq } from "drizzle-orm";
 import { sessions } from "./db/schema";
+
+import { execute, parse, specifiedRules, subscribe, validate } from "graphql";
+import { useEngine } from "@envelop/core";
+import { useOpenTelemetry } from "@envelop/opentelemetry";
+import { SpanKind, trace } from "@opentelemetry/api";
 
 const signingKey = process.env.JWT_SECRET_KEY;
 if (!signingKey) {
@@ -50,7 +54,21 @@ const plugins =
           },
         }),
       ]
-    : [];
+    : [
+        useEngine({ parse, validate, specifiedRules, execute, subscribe }),
+        useOpenTelemetry(
+          {
+            resolvers: true, // Tracks resolvers calls, and tracks resolvers thrown errors
+            variables: true, // Includes the operation variables values as part of the metadata collected
+            result: true, // Includes execution result object as part of the metadata collected
+          },
+          trace.getTracerProvider(),
+          SpanKind.SERVER,
+          {},
+          "feedrouter",
+          "graphql"
+        ),
+      ];
 
 export const yoga = createYoga({
   schema,
@@ -112,8 +130,8 @@ export const yoga = createYoga({
       // The plugin can reject the request if the token is missing or invalid (doesn't pass JWT `verify` flow).
       // By default, the plugin will reject the request if the token is missing or invalid.
       reject: {
-        missingToken: true,
-        invalidToken: true,
+        missingToken: false,
+        invalidToken: false,
       },
     }),
     ...plugins,
@@ -137,9 +155,11 @@ export const yoga = createYoga({
         user: { columns: { id: true, name: true, email: true, image: true } },
       },
     });
+    logger.info(`sessionId ${sessionId} user: ${sess!.user.id}`);
 
     // Extract user from session, or set to null if no session
     const user = sess!.user as User;
+    logger.info(JSON.stringify(user));
 
     return {
       db,

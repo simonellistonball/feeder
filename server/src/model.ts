@@ -6,6 +6,8 @@ import { GraphQLContext } from "./schema";
 import { YogaInitialContext } from "graphql-yoga";
 import { PgTable } from "drizzle-orm/pg-core";
 import { eq } from "drizzle-orm";
+import { warrant } from "./warrant";
+import { getTableConfig } from "drizzle-orm/pg-core";
 
 // Define the required fields
 interface BaseFields {
@@ -73,13 +75,30 @@ export function updateBuilder<
     args: unknown,
     context: GraphQLContext & YogaInitialContext
   ) => {
-    // validate the schema
+    // validate the input
     const data = await zodSchema.transform(stripUndefined).parse(args);
     // check the user has permissions
     const { user, dataSource } = await checkUser(context, roles);
 
     // find the table and do the work
     const databaseTable = schema[table];
+
+    // check the user's warrant
+    if (
+      !(await warrant.Authorization.check({
+        object: {
+          objectId: user.id,
+          objectType: "user",
+        },
+        relation: "edit",
+        subject: {
+          objectId: data.id,
+          objectType: getTableConfig(databaseTable).name,
+        },
+      }))
+    ) {
+      throw new Error("Unauthorized (warrant)");
+    }
 
     const oldObject = await context.db
       .select()
