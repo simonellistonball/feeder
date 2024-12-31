@@ -1,0 +1,1 @@
+CREATE INDEX "workers_messages_messageId_idx" ON "workers_gmail_message_response" USING btree ("message_id");

@@ -1,17 +1,21 @@
 {
   "compilerOptions": {
-    "target": "es2022",
+    "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
     "outDir": "dist",
-
     "sourceMap": true,
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
-
-    "types": ["node"]
+    "allowJs": true,
+    "types": ["node", "vite/client"],
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": false,
+    "baseUrl": ".",
+    "lib": ["esnext", "dom", "dom.iterable", "scripthost"]
   },
-  "include": ["src/**/*.ts", "./dizzle.config.ts"],
+  "include": ["src/**/*.ts", "**/*.js", "./dizzle.config.ts"],
   "exclude": ["node_modules"]
 }
